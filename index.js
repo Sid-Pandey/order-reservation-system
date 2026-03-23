@@ -1,10 +1,26 @@
 require("dotenv").config();
 
+const cors = require("cors");
 const express = require("express");
 const path = require("path");
 const sqlite3 = require("sqlite3").verbose();
 
 const app = express();
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
+  : ["http://localhost:3001"];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
+  })
+);
 app.use(express.json());
 
 const db = new sqlite3.Database(path.join(__dirname, "data.db"));
@@ -291,6 +307,30 @@ app.get("/records", async (req, res) => {
   }
 });
 
+app.get("/metrics", async (req, res) => {
+  try {
+    const rows = await all(`
+      SELECT
+        COUNT(*) AS totalCalls,
+        SUM(CASE WHEN reservation_date IS NOT NULL OR reservation_time IS NOT NULL THEN 1 ELSE 0 END) AS totalReservations,
+        SUM(CASE WHEN order_text IS NOT NULL THEN 1 ELSE 0 END) AS totalOrders,
+        AVG(number_of_people) AS avgPartySize
+      FROM call_records
+    `);
+
+    const metricRow = rows?.[0] ?? {};
+    res.json({
+      totalCalls: Number(metricRow.totalCalls ?? 0),
+      totalReservations: Number(metricRow.totalReservations ?? 0),
+      totalOrders: Number(metricRow.totalOrders ?? 0),
+      avgPartySize: Number(metricRow.avgPartySize ?? 0),
+    });
+  } catch (error) {
+    console.error("Failed to fetch metrics:", error.message);
+    res.status(500).json({ error: "Failed to fetch metrics" });
+  }
+});
+
 async function processWebhook(data) {
   console.log("Processing webhook...");
   const conversationText = buildLlmInput(data);
@@ -304,6 +344,14 @@ async function processWebhook(data) {
 // health check
 app.get("/", (req, res) => {
   res.send("Server running 🚀");
+});
+
+app.get("/healthz", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 const PORT = process.env.PORT || 3000;

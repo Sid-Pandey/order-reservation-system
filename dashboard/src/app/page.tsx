@@ -17,7 +17,20 @@ function valueOrDash(value: string | number | null) {
 }
 
 export default async function Home() {
-  const [records, metrics] = await Promise.all([fetchCallRecords(), fetchMetrics()]);
+  let records: Awaited<ReturnType<typeof fetchCallRecords>> = [];
+  let metrics: Awaited<ReturnType<typeof fetchMetrics>> = {
+    totalCalls: 0,
+    totalReservations: 0,
+    totalOrders: 0,
+    avgPartySize: 0,
+  };
+  let hasApiError = false;
+
+  try {
+    [records, metrics] = await Promise.all([fetchCallRecords(), fetchMetrics()]);
+  } catch {
+    hasApiError = true;
+  }
 
   return (
     <div className="min-h-screen px-6 py-8 text-[var(--foreground)] md:px-10 lg:px-14">
@@ -62,6 +75,11 @@ export default async function Home() {
             <p className="mt-1 text-sm text-[var(--muted)]">
               Structured data extracted from AI-assisted customer calls.
             </p>
+            {hasApiError ? (
+              <p className="mt-2 text-sm text-[var(--danger)]">
+                Could not load data from the API. Check `NEXT_PUBLIC_API_URL` and API availability.
+              </p>
+            ) : null}
           </div>
 
           <div className="overflow-x-auto">
