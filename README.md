@@ -2,7 +2,7 @@
 
 Monorepo-style project with:
 
-- **API service** in repo root (`index.js`, Express + SQLite)
+- **API service** in repo root (`index.js`, Express + PostgreSQL)
 - **Dashboard service** in `dashboard/` (Next.js)
 
 ## Local Development
@@ -27,6 +27,7 @@ Use `.env` (see `.env.example`):
 - `OPENAI_API_KEY`
 - `EXTRACTION_MODEL` (optional)
 - `CORS_ORIGINS` (comma-separated, e.g. `http://localhost:3001`)
+- `DATABASE_URL` (PostgreSQL connection string)
 
 ### Dashboard (`dashboard/.env.local`)
 
@@ -42,7 +43,7 @@ Deploy as two separate services from the same repo:
    - Root directory: repo root
    - Build command: `npm install`
    - Start command: `npm run start:api`
-   - Required env vars: `OPENAI_API_KEY`, `CORS_ORIGINS`
+   - Required env vars: `OPENAI_API_KEY`, `CORS_ORIGINS`, `DATABASE_URL`
 
 2. **Dashboard Service**
    - Root directory: `dashboard`

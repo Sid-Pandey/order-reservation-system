@@ -2,8 +2,7 @@ require("dotenv").config();
 
 const cors = require("cors");
 const express = require("express");
-const path = require("path");
-const sqlite3 = require("sqlite3").verbose();
+const { Pool } = require("pg");
 
 const app = express();
 const allowedOrigins = process.env.CORS_ORIGINS
@@ -23,42 +22,34 @@ app.use(
 );
 app.use(express.json());
 
-const db = new sqlite3.Database(path.join(__dirname, "data.db"));
-
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function onRun(err) {
-      if (err) {
-        reject(err);
-        return;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL
+    ? {
+        rejectUnauthorized: false,
       }
-      resolve({ lastID: this.lastID });
-    });
-  });
-}
+    : undefined,
+});
 
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(rows);
-    });
-  });
+async function query(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows;
 }
 
 async function initDatabase() {
-  await run(`
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is missing");
+  }
+
+  await query(`
     CREATE TABLE IF NOT EXISTS call_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       caller_name TEXT,
       order_text TEXT,
       reservation_date TEXT,
       reservation_time TEXT,
       number_of_people INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 }
@@ -250,7 +241,7 @@ async function extractWithLlm(conversationText) {
 }
 
 async function saveRecord(record) {
-  const result = await run(
+  const rows = await query(
     `
       INSERT INTO call_records (
         caller_name,
@@ -258,7 +249,8 @@ async function saveRecord(record) {
         reservation_date,
         reservation_time,
         number_of_people
-      ) VALUES (?, ?, ?, ?, ?)
+      ) VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
     `,
     [
       record.callerName,
@@ -269,7 +261,7 @@ async function saveRecord(record) {
     ]
   );
 
-  return result.lastID;
+  return rows?.[0]?.id;
 }
 
 function printExtractionLineByLine(record) {
@@ -299,7 +291,7 @@ app.post("/webhook/elevenlabs", (req, res) => {
 
 app.get("/records", async (req, res) => {
   try {
-    const rows = await all("SELECT * FROM call_records ORDER BY id DESC");
+    const rows = await query("SELECT * FROM call_records ORDER BY id DESC");
     res.json(rows);
   } catch (error) {
     console.error("Failed to fetch records:", error.message);
@@ -309,12 +301,12 @@ app.get("/records", async (req, res) => {
 
 app.get("/metrics", async (req, res) => {
   try {
-    const rows = await all(`
+    const rows = await query(`
       SELECT
-        COUNT(*) AS totalCalls,
-        SUM(CASE WHEN reservation_date IS NOT NULL OR reservation_time IS NOT NULL THEN 1 ELSE 0 END) AS totalReservations,
-        SUM(CASE WHEN order_text IS NOT NULL THEN 1 ELSE 0 END) AS totalOrders,
-        AVG(number_of_people) AS avgPartySize
+        COUNT(*) AS "totalCalls",
+        COALESCE(SUM(CASE WHEN reservation_date IS NOT NULL OR reservation_time IS NOT NULL THEN 1 ELSE 0 END), 0) AS "totalReservations",
+        COALESCE(SUM(CASE WHEN order_text IS NOT NULL THEN 1 ELSE 0 END), 0) AS "totalOrders",
+        COALESCE(AVG(number_of_people), 0) AS "avgPartySize"
       FROM call_records
     `);
 
