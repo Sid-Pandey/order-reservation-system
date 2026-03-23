@@ -1,0 +1,25 @@
+{
+  "name": "order-reservation-system",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test:payload": "node test-payload.js",
+    "start:all": "concurrently \"npm:start:api\" \"npm:start:dashboard\"",
+    "start:api": "node index.js",
+    "start:dashboard": "npm --prefix dashboard run dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
