@@ -34,7 +34,7 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen px-6 py-8 text-[var(--foreground)] md:px-10 lg:px-14">
-      <main className="mx-auto flex w-full max-w-7 flex-col gap-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <header className="soft-card p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
